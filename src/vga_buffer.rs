@@ -1,12 +1,13 @@
-use core::fmt;
+use core::{fmt, ops::DerefMut};
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
 
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Green, Color::Black),
+        row_position: LAST_ROW,
+        col_position: 0,
+        pallet: DEFAULT_COLORS,
         /// Safety:
         ///     This is a magical physical memory address, so there's always a Buffer there.
         ///     `lazy_static` ensures that only one mutable reference is ever created.
@@ -17,8 +18,13 @@ lazy_static! {
 const BUFFER: *mut Buffer = 0xb8000 as _;
 const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
+const LAST_ROW: usize = BUFFER_HEIGHT - 1;
 
 const PLACEHOLDER_CHAR: u8 = 0xfe;
+const DEFAULT_COLORS: Pallet = Pallet {
+    text: ColorCode::new(Color::Green, Color::Black),
+    error: ColorCode::new(Color::LightRed, Color::DarkGray),
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,10 +71,32 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+#[derive(Clone, Copy)]
+/// The classes of text that can be written to the VGA Buffer.
+pub enum TextType {
+    Text,
+    Error,
+}
+
+/// Describes the colors to use for different `TextType`s.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pallet {
+    pub text: ColorCode,
+    pub error: ColorCode,
+}
+
+/// Writes to the VGA Buffer.
 pub struct Writer {
-    column_position: usize,
-    color_code: ColorCode,
+    row_position: usize,
+    col_position: usize,
+    pallet: Pallet,
     buffer: &'static mut Buffer,
+}
+
+/// Wraps `Writer` to provide a `fmt::Write` implementation that can be used for panic messages.
+struct PanicWriter<'a>{
+    writer: &'a mut Writer,
+    old_location: (usize, usize),
 }
 
 impl ColorCode {
@@ -78,40 +106,66 @@ impl ColorCode {
     }
 }
 
+impl Pallet {
+    pub fn color(&self, ty: TextType) -> ColorCode {
+        use TextType::*;
+        match ty {
+            Text => self.text,
+            Error => self.error,
+        }
+    }
+}
+
 impl Writer {
-    pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
-            self.write_byte(match byte {
-                // We can print printable ASCII (space through tilde) and newline
-                b' '..=b'~' | b'\n' => byte,
-                // For anything else, just print a placeholder
-                _ => PLACEHOLDER_CHAR,
-            });
+    /// Writes a string `s` to the VGA buffer, using the color for `ty`.
+    /// 
+    /// Any non-ASCII bytes in `s` are replaced with `PLACEHOLDER_CHAR`.
+    pub fn write_string(&mut self, s: &str, ty: TextType) {
+        self.write_bytes(s.bytes().map(byte_to_ascii), ty);
+    }
+
+    /// Writes a sequence of Code Page 437 characters `bytes` to the VGA Buffer, using the color for `ty`.
+    pub fn write_bytes<I: IntoIterator<Item=u8>>(&mut self, bytes: I, ty: TextType) {
+        for byte in bytes {
+            self.write_byte(byte, ty);
         }
     }
 
-    pub fn write_byte(&mut self, byte: u8) {
+    /// Writes a single byte to the `Writer`'s current location, then advances to the next location.
+    fn write_byte(&mut self, byte: u8, ty: TextType) {
         match byte {
             b'\n' => self.new_line(),
             byte => {
-                if self.column_position >= BUFFER_WIDTH {
+                if self.col_position >= BUFFER_WIDTH {
                     self.new_line();
                 }
 
-                let row = BUFFER_HEIGHT - 1;
-                let col = self.column_position;
-                let color_code = self.color_code;
+                let row = self.row_position;
+                let col = self.col_position;
+                let color_code = self.pallet.color(ty);
 
                 self.buffer.chars[row][col].write(ScreenChar {
                     ascii_char: byte,
                     color_code,
                 });
-                self.column_position += 1;
+                self.col_position += 1;
             }
         }
     }
 
+    /// Proceeds to the next row of the buffer. If the Writer is already on the last line, `shift_up` to make room.
     fn new_line(&mut self) {
+        if self.row_position == LAST_ROW {
+            self.shift_up();
+        } else {
+            self.row_position += 1;
+        }
+
+        self.col_position = 0;
+    }
+
+    /// Shifts all rows up by one, filling the bottom row with the background color for `Text`.
+    fn shift_up(&mut self) {
         for row in 1..BUFFER_HEIGHT {
             for col in 0..BUFFER_WIDTH {
                 let char = self.buffer.chars[row][col].read();
@@ -122,17 +176,52 @@ impl Writer {
         for col in 0..BUFFER_WIDTH {
             self.buffer.chars[BUFFER_HEIGHT - 1][col].write(ScreenChar {
                 ascii_char: b' ',
-                color_code: self.color_code,
+                color_code: self.pallet.color(TextType::Text),
             })
         }
+    }
+}
 
-        self.column_position = 0;
+fn byte_to_ascii(unicode_byte: u8) -> u8 {
+    match unicode_byte {
+        // We can print printable ASCII (space through tilde) and newline
+        b' '..=b'~' | b'\n' => unicode_byte,
+        // For anything else, just print a placeholder
+        _ => PLACEHOLDER_CHAR,
     }
 }
 
 impl fmt::Write for Writer {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        self.write_string(s);
+        self.write_string(s, TextType::Text);
+        Ok(())
+    }
+}
+
+impl<'a> PanicWriter<'a> {
+    fn new(writer: &'a mut Writer) -> Self {
+        let old_location = (writer.row_position, writer.col_position);
+        writer.row_position = 0;
+        writer.col_position = 0;
+
+        Self {
+            writer,
+            old_location
+        }
+    }
+}
+
+impl<'a> core::ops::Drop for PanicWriter<'a> {
+    fn drop(&mut self) {
+        let (old_row, old_col) = self.old_location;
+        self.writer.row_position = old_row;
+        self.writer.col_position = old_col;
+    }
+}
+
+impl<'a> fmt::Write for PanicWriter<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.writer.write_string(s, TextType::Error);
         Ok(())
     }
 }
@@ -148,8 +237,20 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
+
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write as _;
     WRITER.lock().write_fmt(args).unwrap();
+}
+
+#[macro_export]
+macro_rules! panic_print {
+    ($($arg:tt)*) => ($crate::vga_buffer::_panic_print(format_args!($($arg)*)));
+}
+
+#[doc(hidden)]
+pub fn _panic_print(args: fmt::Arguments) {
+    use core::fmt::Write as _;
+    PanicWriter::new(WRITER.lock().deref_mut()).write_fmt(args).unwrap();
 }
