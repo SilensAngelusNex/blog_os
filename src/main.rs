@@ -3,23 +3,17 @@
 
 use core::panic::PanicInfo;
 
+mod vga_buffer;
+
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
     loop {}
 }
 
-static HELLO: &[u8] = b"Hello, World!";
-const VGA_BUFFER: *mut u8 = 0xb8000 as _;
-
 #[no_mangle]
-pub extern "C" fn _start() ->! {
-    for (i, &byte) in HELLO.iter().enumerate() {
-        let char_start =  i as isize * 2;
-        unsafe {
-            *VGA_BUFFER.offset(char_start) = byte;
-            *VGA_BUFFER.offset(char_start + 1) = 0xb;
-        }
-    }
-    
+pub extern "C" fn _start() -> ! {
+    println!("Hello, {}!", "World");
+    panic!("Help me!");
     loop {}
 }
