@@ -70,3 +70,8 @@ impl<T: Fn() -> ()> Testable for T {
         serial_println!("[ok]")
     }
 }
+
+#[test_case]
+fn trivial_assertion() {
+    assert_eq!(1, 1);
+}
