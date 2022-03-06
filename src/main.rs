@@ -2,8 +2,9 @@
 #![no_main]
 
 use core::panic::PanicInfo;
-
-mod vga_buffer;
+use blog_os::panic_print;
+#[cfg(not(test))]
+use blog_os::println;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -12,8 +13,15 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn _start() -> ! {
-    println!("Hello, {}!", "World");
+pub extern "Rust" fn _main() {
+    #[cfg(test)]
+    blog_os::exit_qemu(blog_os::QemuExitCode::Success);
 
-    panic!("Oh no, I died!");
+    #[cfg(not(test))]
+    main();
+}
+
+#[cfg(not(test))]
+fn main() {
+    println!("Hello, {}!", "World");
 }

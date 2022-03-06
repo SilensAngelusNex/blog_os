@@ -1,7 +1,0 @@
-{
-    "rust-analyzer.checkOnSave.allTargets": false,
-    "rust-analyzer.checkOnSave.allFeatures": null,
-    "rust-analyzer.checkOnSave.extraArgs": [
-        "--bins"
-    ]
-}

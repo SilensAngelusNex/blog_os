@@ -254,3 +254,32 @@ pub fn _panic_print(args: fmt::Arguments) {
     use core::fmt::Write as _;
     PanicWriter::new(WRITER.lock().deref_mut()).write_fmt(args).unwrap();
 }
+
+#[test_case]
+fn test_println_simple() {
+    println!("test_println_simple output");
+}
+
+
+#[test_case]
+fn test_println_many() {
+    const MAX: usize = 200; 
+    for i in 1..=MAX {
+        println!("Printing many lines: {} of {}", i, MAX);
+    }
+}
+
+#[test_case]
+fn test_println_output() {
+    let s = "Some test string that fits on one line.";
+    more_asserts::assert_le!(s.len(), BUFFER_WIDTH);
+    assert!(s.is_ascii());
+
+    println!("\n{}", s);
+
+    let writer = WRITER.lock();
+    for (i, c) in s.chars().enumerate() {
+        let byte = writer.buffer.chars[LAST_ROW - 1][i].read().ascii_char;
+        assert_eq!(char::from(byte), c);
+    }
+}
