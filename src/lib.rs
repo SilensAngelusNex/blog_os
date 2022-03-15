@@ -5,6 +5,8 @@
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use core::{convert::From, fmt::Debug};
+
 pub mod serial;
 pub mod vga_buffer;
 
@@ -68,6 +70,33 @@ impl<T: Fn() -> ()> Testable for T {
         serial_print!("{}...\t", core::any::type_name::<Self>());
         self();
         serial_println!("[ok]")
+    }
+}
+
+impl From<()> for QemuExitCode {
+    fn from(_: ()) -> Self {
+        Self::Success
+    }
+}
+
+impl<T: Into<QemuExitCode>> From<Option<T>> for QemuExitCode {
+    fn from(opt: Option<T>) -> Self {
+        match opt {
+            Some(inner) => inner.into(),
+            None => Self::Failure,
+        }
+    }
+}
+
+impl<T: Into<QemuExitCode>, E: Debug> From<Result<T, E>> for QemuExitCode {
+    fn from(res: Result<T, E>) -> Self {
+        match res {
+            Ok(inner) => inner.into(),
+            Err(_) => {
+                // TODO: Print the error? Not sure where to print it.
+                Self::Failure
+            }
+        }
     }
 }
 
