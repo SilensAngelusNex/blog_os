@@ -94,7 +94,7 @@ pub struct Writer {
 }
 
 /// Wraps `Writer` to provide a `fmt::Write` implementation that can be used for panic messages.
-struct PanicWriter<'a>{
+struct PanicWriter<'a> {
     writer: &'a mut Writer,
     old_location: (usize, usize),
 }
@@ -118,14 +118,14 @@ impl Pallet {
 
 impl Writer {
     /// Writes a string `s` to the VGA buffer, using the color for `ty`.
-    /// 
+    ///
     /// Any non-ASCII bytes in `s` are replaced with `PLACEHOLDER_CHAR`.
     pub fn write_string(&mut self, s: &str, ty: TextType) {
         self.write_bytes(s.bytes().map(byte_to_ascii), ty);
     }
 
     /// Writes a sequence of Code Page 437 characters `bytes` to the VGA Buffer, using the color for `ty`.
-    pub fn write_bytes<I: IntoIterator<Item=u8>>(&mut self, bytes: I, ty: TextType) {
+    pub fn write_bytes<I: IntoIterator<Item = u8>>(&mut self, bytes: I, ty: TextType) {
         for byte in bytes {
             self.write_byte(byte, ty);
         }
@@ -206,7 +206,7 @@ impl<'a> PanicWriter<'a> {
 
         Self {
             writer,
-            old_location
+            old_location,
         }
     }
 }
@@ -237,7 +237,6 @@ macro_rules! println {
     ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
 }
 
-
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write as _;
@@ -252,7 +251,9 @@ macro_rules! panic_print {
 #[doc(hidden)]
 pub fn _panic_print(args: fmt::Arguments) {
     use core::fmt::Write as _;
-    PanicWriter::new(WRITER.lock().deref_mut()).write_fmt(args).unwrap();
+    PanicWriter::new(WRITER.lock().deref_mut())
+        .write_fmt(args)
+        .unwrap();
 }
 
 #[test_case]
@@ -260,10 +261,9 @@ fn test_println_simple() {
     println!("test_println_simple output");
 }
 
-
 #[test_case]
 fn test_println_many() {
-    const MAX: usize = 200; 
+    const MAX: usize = 200;
     for i in 1..=MAX {
         println!("Printing many lines: {} of {}", i, MAX);
     }

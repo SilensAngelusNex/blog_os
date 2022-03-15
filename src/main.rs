@@ -1,27 +1,35 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(blog_os::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-use core::panic::PanicInfo;
-use blog_os::panic_print;
-#[cfg(not(test))]
 use blog_os::println;
+use core::panic::PanicInfo;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    panic_print!("{}\n", info);
-    loop {}
+    #[cfg(not(test))]
+    {
+        blog_os::panic_print!("{}\n", info);
+        loop {}
+    }
+
+    #[cfg(test)]
+    blog_os::test_panic_handler(info);
 }
 
 #[no_mangle]
-pub extern "Rust" fn _main() {
+pub extern "C" fn _start() -> ! {
     #[cfg(test)]
-    blog_os::exit_qemu(blog_os::QemuExitCode::Success);
+    test_main();
 
     #[cfg(not(test))]
     main();
+
+    loop {}
 }
 
-#[cfg(not(test))]
 fn main() {
-    println!("Hello, {}!", "World");
+    println!("Hello World{}", "!");
 }

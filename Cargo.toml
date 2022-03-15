@@ -9,6 +9,9 @@ edition = "2021"
 name = "blog_os"
 path = "src/main.rs"
 test = false
+
+[[test]]
+name = "should_panic"
 harness = false
 
 [dependencies]

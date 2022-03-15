@@ -1,5 +1,4 @@
 #![no_std]
-
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
@@ -17,28 +16,23 @@ pub enum QemuExitCode {
     Failure = 0x11,
 }
 
-#[cfg(not(test))]
-extern "Rust" {
-    fn main();
-}
-
 #[cfg(test)]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
+    test_panic_handler(info)
+}
+
+#[cfg(test)]
+#[no_mangle]
+pub extern "C" fn _start() -> ! {
+    test_main();
+    loop {}
+}
+
+pub fn test_panic_handler(info: &core::panic::PanicInfo) -> ! {
     serial_println!("[failed]");
     serial_println!("Error: {}\n", info);
     exit_qemu(QemuExitCode::Failure);
-}
-
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
-    #[cfg(test)]
-    test_main();
-
-    #[cfg(not(test))]
-    unsafe { main() };
-
-    loop {}
 }
 
 pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
@@ -59,7 +53,6 @@ pub fn test_runner(tests: &[&dyn Testable]) -> ! {
     }
     exit_qemu(QemuExitCode::Success);
 }
-
 
 pub trait Testable {
     fn run(&self) -> ();
