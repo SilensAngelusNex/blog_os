@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-use blog_os::{gdt, exit_qemu, serial_print, serial_println, QemuExitCode};
+use blog_os::{exit_qemu, gdt, serial_print, serial_println, QemuExitCode};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
@@ -40,11 +40,10 @@ fn init() {
 pub extern "C" fn _start() -> ! {
     serial_print!("stack_overflow::overflow_stack...\t");
     init();
-    
+
     recurse_forever();
     unreachable!("Shouldn't be able to continue after overflow.")
 }
-
 
 #[allow(unconditional_recursion)]
 fn recurse_forever() {
