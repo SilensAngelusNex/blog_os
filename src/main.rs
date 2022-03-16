@@ -32,4 +32,7 @@ pub extern "C" fn _start() -> ! {
 
 fn main() {
     println!("Hello World{}", "!");
+    blog_os::init();
+    x86_64::instructions::interrupts::int3();
+    println!("Look ma, no crash!");
 }

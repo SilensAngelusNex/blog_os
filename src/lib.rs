@@ -1,11 +1,13 @@
 #![no_std]
 #![cfg_attr(test, no_main)]
+#![feature(abi_x86_interrupt)]
 #![feature(custom_test_frameworks)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::{convert::From, fmt::Debug};
 
+pub mod interrupts;
 pub mod serial;
 pub mod vga_buffer;
 
@@ -29,6 +31,10 @@ pub extern "C" fn _start() -> ! {
     loop {}
 }
 
+pub fn init() {
+    interrupts::init_itd();
+}
+
 pub fn test_panic_handler(info: &core::panic::PanicInfo) -> ! {
     serial_println!("[failed]");
     serial_println!("Error: {}\n", info);
@@ -47,10 +53,13 @@ pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) -> ! {
+    init();
+
     println!("Running {} tests", tests.len());
     for test in tests {
         test.run()
     }
+    
     exit_qemu(QemuExitCode::Success);
 }
 
