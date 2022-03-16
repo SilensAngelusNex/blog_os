@@ -2,6 +2,7 @@ use core::{fmt, ops::DerefMut};
 use lazy_static::lazy_static;
 use spin::Mutex;
 use volatile::Volatile;
+use x86_64::instructions::interrupts::without_interrupts;
 
 lazy_static! {
     pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
@@ -240,7 +241,10 @@ macro_rules! println {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write as _;
-    WRITER.lock().write_fmt(args).unwrap();
+
+    without_interrupts(|| {
+        WRITER.lock().write_fmt(args).unwrap();
+    });
 }
 
 #[macro_export]
@@ -251,9 +255,12 @@ macro_rules! panic_print {
 #[doc(hidden)]
 pub fn _panic_print(args: fmt::Arguments) {
     use core::fmt::Write as _;
-    PanicWriter::new(WRITER.lock().deref_mut())
-        .write_fmt(args)
-        .unwrap();
+
+    without_interrupts(|| {
+        PanicWriter::new(WRITER.lock().deref_mut())
+            .write_fmt(args)
+            .unwrap();
+    });
 }
 
 #[test_case]
@@ -271,15 +278,19 @@ fn test_println_many() {
 
 #[test_case]
 fn test_println_output() {
+    use core::fmt::Write as _;
+
     let s = "Some test string that fits on one line.";
     more_asserts::assert_le!(s.len(), BUFFER_WIDTH);
     assert!(s.is_ascii());
 
-    println!("\n{}", s);
+    without_interrupts(|| {
+        let mut writer = WRITER.lock();
+        writeln!(writer, "\n{}", s).expect("writeln failed");
 
-    let writer = WRITER.lock();
-    for (i, c) in s.chars().enumerate() {
-        let byte = writer.buffer.chars[LAST_ROW - 1][i].read().ascii_char;
-        assert_eq!(char::from(byte), c);
-    }
+        for (i, c) in s.chars().enumerate() {
+            let byte = writer.buffer.chars[LAST_ROW - 1][i].read().ascii_char;
+            assert_eq!(char::from(byte), c);
+        }
+    });
 }

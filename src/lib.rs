@@ -29,12 +29,16 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     test_main();
-    loop {}
+    hlt_loop();
 }
 
 pub fn init() {
     gdt::init();
     interrupts::init_itd();
+    unsafe {
+        interrupts::init_pics();
+    }
+    x86_64::instructions::interrupts::enable();
 }
 
 pub fn test_panic_handler(info: &core::panic::PanicInfo) -> ! {
@@ -51,7 +55,13 @@ pub fn exit_qemu(exit_code: QemuExitCode) -> ! {
         port.write(exit_code as u32);
     }
 
-    unreachable!()
+    hlt_loop();
+}
+
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
 }
 
 pub fn test_runner(tests: &[&dyn Testable]) -> ! {

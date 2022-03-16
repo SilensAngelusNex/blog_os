@@ -4,7 +4,7 @@
 #![test_runner(blog_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use blog_os::println;
+use blog_os::{hlt_loop, println};
 use core::panic::PanicInfo;
 
 #[panic_handler]
@@ -12,7 +12,7 @@ fn panic(info: &PanicInfo) -> ! {
     #[cfg(not(test))]
     {
         blog_os::panic_print!("{}\n", info);
-        loop {}
+        hlt_loop();
     }
 
     #[cfg(test)]
@@ -27,7 +27,7 @@ pub extern "C" fn _start() -> ! {
     #[cfg(not(test))]
     main();
 
-    loop {}
+    hlt_loop();
 }
 
 fn main() {
@@ -38,12 +38,6 @@ fn main() {
     //     // SAFETY: Uh, no.
     //     (0xdeadbeef as *mut u64).write_volatile(42);
     // }
-
-    #[allow(unconditional_recursion)]
-    fn looop() {
-        looop()
-    }
-    looop();
 
     println!("Look ma, no crash!");
 }
