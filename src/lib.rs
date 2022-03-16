@@ -7,6 +7,7 @@
 
 use core::{convert::From, fmt::Debug};
 
+pub mod gdt;
 pub mod interrupts;
 pub mod serial;
 pub mod vga_buffer;
@@ -32,6 +33,7 @@ pub extern "C" fn _start() -> ! {
 }
 
 pub fn init() {
+    gdt::init();
     interrupts::init_itd();
 }
 
@@ -59,7 +61,7 @@ pub fn test_runner(tests: &[&dyn Testable]) -> ! {
     for test in tests {
         test.run()
     }
-    
+
     exit_qemu(QemuExitCode::Success);
 }
 

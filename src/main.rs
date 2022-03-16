@@ -33,6 +33,17 @@ pub extern "C" fn _start() -> ! {
 fn main() {
     println!("Hello World{}", "!");
     blog_os::init();
-    x86_64::instructions::interrupts::int3();
+
+    // unsafe {
+    //     // SAFETY: Uh, no.
+    //     (0xdeadbeef as *mut u64).write_volatile(42);
+    // }
+
+    #[allow(unconditional_recursion)]
+    fn looop() {
+        looop()
+    }
+    looop();
+
     println!("Look ma, no crash!");
 }

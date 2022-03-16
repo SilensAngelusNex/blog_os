@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(custom_test_frameworks)]
 
 use blog_os::{exit_qemu, serial_print, serial_println, QemuExitCode};
 
