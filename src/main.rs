@@ -34,10 +34,24 @@ fn main() {
     println!("Hello World{}", "!");
     blog_os::init();
 
-    // unsafe {
-    //     // SAFETY: Uh, no.
-    //     (0xdeadbeef as *mut u64).write_volatile(42);
-    // }
+    use x86_64::registers::control::Cr3;
 
-    println!("Look ma, no crash!");
+    let (level_4_page_table, _) = Cr3::read();
+    println!(
+        "Level 4 page table at: {:?}",
+        level_4_page_table.start_address()
+    );
+
+    let ptr = 0x2055d3 as *mut u64;
+
+    let x;
+    unsafe {
+        x = *ptr;
+    }
+    println!("Read {:#x}.", x);
+
+    unsafe {
+        *ptr = 42;
+    }
+    println!("Write worked.");
 }
